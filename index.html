@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>库存预警管理</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;padding:20px;font-size:14px}
+.wrap{max-width:1160px;margin:0 auto}
+
+/* ── 顶栏 ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.topbar h1{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px}
+
+/* ── 仓库切换 ── */
+.wh-switcher{display:flex;gap:0;background:#fff;border:1px solid #e0e0e0;border-radius:10px;overflow:hidden}
+.wh-btn{padding:7px 22px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:transparent;color:#888;transition:all .15s;display:flex;align-items:center;gap:6px}
+.wh-btn.active{color:#fff}
+.wh-btn.wh-0.active{background:#1a5db5}
+.wh-btn.wh-1.active{background:#1a7a3c}
+.wh-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.wh-dot-0{background:#4a90d9}
+.wh-dot-1{background:#34a853}
+.wh-btn.active .wh-dot-0{background:#fff}
+.wh-btn.active .wh-dot-1{background:#fff}
+
+/* ── 统计卡片 ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:#fff;border-radius:10px;padding:11px 14px;border:1px solid #e8e8e8}
+.stat-label{font-size:11px;color:#888;margin-bottom:3px}
+.stat-val{font-size:22px;font-weight:700}
+.stat-val.danger{color:#d93025}.stat-val.warn{color:#e67e00}.stat-val.ok{color:#1a7a3c}.stat-val.info{color:#1a5db5}
+
+/* ── 卡片 ── */
+.scard{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px 18px;margin-bottom:14px}
+.stitle{font-size:13px;font-weight:600;color:#555;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+
+/* ── 类别管理 ── */
+.cat-mgr{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.cat-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 12px;border:1px solid #ddd;border-radius:20px;font-size:12px;background:#f8f8f8}
+.cat-tag button{background:none;border:none;cursor:pointer;color:#aaa;padding:0;font-size:15px;line-height:1}
+.cat-tag button:hover{color:#d93025}
+.cat-add{display:flex;align-items:center;gap:7px}
+.cat-add input{font-size:12px;padding:4px 10px;border:1px solid #ddd;border-radius:20px;height:28px;width:120px;outline:none}
+.cat-add input:focus{border-color:#4a90d9}
+
+/* ── 表单 ── */
+.form-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr auto;gap:7px;align-items:end}
+.field label{font-size:11px;color:#888;display:block;margin-bottom:4px}
+.field input,.field select{width:100%;font-size:13px;padding:5px 8px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;height:32px;outline:none}
+.field input:focus,.field select:focus{border-color:#4a90d9}
+
+/* ── 按钮 ── */
+.btn{height:32px;padding:0 12px;font-size:12px;background:#fff;border:1px solid #ddd;border-radius:8px;cursor:pointer;color:#333;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#e8f0fc;color:#1a5db5;border-color:#b0c8f0}.btn.primary:hover{background:#d2e3fb}
+.btn.success{background:#e6f4ea;color:#1a7a3c;border-color:#a8d5b0}.btn.success:hover{background:#d0ead5}
+.btn.danger{background:#fde8e8;color:#d93025;border-color:#f5c6c6}.btn.danger:hover{background:#fbd0d0}
+.btn.sm{height:26px;font-size:11px;padding:0 10px}
+
+/* ── 导入区 ── */
+.import-zone{border:2px dashed #ccc;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafafa;transition:border-color .15s}
+.import-zone:hover,.import-zone.drag{border-color:#4a90d9;background:#f0f6ff}
+.import-zone p{font-size:12px;color:#999;margin-top:4px}
+.import-zone strong{font-size:13px;font-weight:600;color:#444}
+.update-zone{border:2px dashed #b2d8b2;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#f6fbf6;transition:border-color .15s}
+.update-zone:hover,.update-zone.drag{border-color:#1a7a3c;background:#eaf5ea}
+.update-zone p{font-size:12px;color:#888;margin-top:4px}
+.update-zone strong{font-size:13px;font-weight:600;color:#444}
+.tpl-hint{font-size:11px;color:#aaa;margin-top:7px}
+.tpl-hint a,.tpl-hint span{color:#4a90d9;cursor:pointer;text-decoration:underline}
+
+/* ── 预览表 ── */
+.preview-wrap{margin-top:10px}
+.ptable-wrap{border:1px solid #e8e8e8;border-radius:8px;overflow:hidden;margin-top:7px;max-height:175px;overflow-y:auto}
+.ptable{width:100%;border-collapse:collapse;font-size:12px}
+.ptable th{background:#f5f5f5;padding:6px 9px;text-align:left;font-weight:600;color:#777;border-bottom:1px solid #e8e8e8}
+.ptable td{padding:6px 9px;border-bottom:1px solid #f0f0f0;color:#333}
+.ptable tr:last-child td{border-bottom:none}
+.preview-actions{display:flex;align-items:center;justify-content:space-between;margin-top:9px;flex-wrap:wrap;gap:8px}
+.psummary{font-size:12px;color:#888}.psummary b{color:#333;font-weight:600}
+.update-summary-bar{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;background:#f6fbf6;border-radius:8px;margin-bottom:8px;font-size:12px}
+.update-summary-bar span{font-weight:600}
+.match-ok{color:#1a7a3c}.match-skip{color:#e67e00}
+
+/* ── 筛选栏 ── */
+.filter-bar{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.fbtn{padding:5px 11px;font-size:12px;border:1px solid #e0e0e0;border-radius:8px;cursor:pointer;background:#fff;color:#888}
+.fbtn.active{border-color:#999;color:#333;background:#f0f0f0;font-weight:600}
+
+/* ── 批量操作栏 ── */
+.batch-bar{display:none;align-items:center;gap:10px;padding:8px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;margin-bottom:10px;flex-wrap:wrap}
+.batch-bar.visible{display:flex}
+.batch-info{font-size:13px;color:#7a5500;font-weight:500}
+
+/* ── Tabs ── */
+.tab-bar{display:flex;gap:0;border-bottom:1.5px solid #e8e8e8;margin-bottom:0}
+.tab{padding:9px 18px;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-1.5px;font-weight:500}
+.tab.active{color:#1a5db5;border-bottom-color:#1a5db5;font-weight:600}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* ── 库存明细表 ── */
+.table-wrap{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;overflow-x:auto}
+table.main{width:100%;border-collapse:collapse;min-width:960px}
+table.main thead tr{background:#f8f8f8}
+table.main th{font-size:11px;font-weight:600;color:#888;padding:8px 10px;text-align:left;white-space:nowrap}
+table.main td{font-size:12px;padding:0;color:#1a1a1a;border-top:1px solid #f0f0f0;vertical-align:middle}
+table.main td .cell{padding:7px 10px;display:flex;align-items:center}
+table.main tr:hover td{background:#fafafa}
+table.main tr.editing td{background:#eef4ff !important}
+table.main tr.del-confirm-row td{background:#fff5f5 !important}
+table.main tr.selected td{background:#fffbea !important}
+.cell-input{font-size:12px;padding:3px 6px;border:1px solid #4a90d9;border-radius:6px;background:#fff;color:#1a1a1a;width:100%;outline:none}
+.cell-select{font-size:12px;padding:3px 6px;border:1px solid #4a90d9;border-radius:6px;background:#fff;color:#1a1a1a;width:100%;outline:none}
+
+/* ── 徽章 ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge::before{content:'';width:4px;height:4px;border-radius:50%;background:currentColor;display:inline-block}
+.badge.danger{background:#fde8e8;color:#d93025}.badge.warn{background:#fff3e0;color:#e67e00}.badge.ok{background:#e6f4ea;color:#1a7a3c}
+.wh-badge-0{background:#e8f0fc;color:#1a5db5;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.wh-badge-1{background:#e6f4ea;color:#1a7a3c;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.freq-badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px}
+.freq-high{background:#fde8e8;color:#c62828}.freq-mid{background:#fff3e0;color:#e65100}.freq-low{background:#f0f0f0;color:#666}
+
+/* ── 进度条 ── */
+.pbar{height:5px;background:#eee;border-radius:3px;overflow:hidden;min-width:50px}
+.pfill{height:100%;border-radius:3px}
+.pfill.danger{background:#d93025}.pfill.warn{background:#e67e00}.pfill.ok{background:#1a7a3c}
+
+/* ── 行内按钮 ── */
+.bicon{background:none;border:none;cursor:pointer;color:#bbb;padding:3px 5px;border-radius:5px;font-size:14px;display:inline-flex;align-items:center;transition:background .1s,color .1s}
+.bicon:hover{background:#f0f0f0;color:#555}
+.bicon.save-btn{color:#1a7a3c;font-size:12px;padding:4px 8px}.bicon.save-btn:hover{background:#e6f4ea}
+.bicon.cancel-btn{font-size:12px;padding:4px 8px;color:#888}
+.del-confirm-btn{background:#fde8e8;color:#d93025;border:none;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;cursor:pointer}
+.del-confirm-btn:hover{background:#f5c6c6}
+.del-cancel-btn{background:#f5f5f5;color:#888;border:none;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
+.del-cancel-btn:hover{background:#e8e8e8}
+
+/* ── 搜索栏 ── */
+.search-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.search-input-wrap{position:relative;flex:1;min-width:180px;max-width:320px}
+.search-input-wrap input{width:100%;font-size:13px;padding:5px 10px 5px 30px;border:1px solid #ddd;border-radius:8px;height:32px;outline:none;background:#fff}
+.search-input-wrap input:focus{border-color:#4a90d9}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#bbb;font-size:14px;pointer-events:none}
+.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;color:#bbb;font-size:14px;display:none}
+.search-clear.visible{display:block}
+.search-result-tip{font-size:12px;color:#888}
+
+/* ── 按类别导出面板 ── */
+.cat-export-panel{background:#f8fbff;border:1px solid #d0e4fb;border-radius:10px;padding:12px 16px;margin-bottom:12px}
+.cat-export-title{font-size:12px;font-weight:600;color:#1a5db5;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cat-export-grid{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cat-export-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid #b0c8f0;border-radius:8px;font-size:12px;cursor:pointer;background:#fff;color:#1a5db5;white-space:nowrap}
+.cat-export-btn:hover{background:#e8f0fc}
+.cat-export-all{background:#1a5db5;color:#fff;border-color:#1a5db5}
+.cat-export-all:hover{background:#1550a0}
+
+/* ── 采购计划表 ── */
+table.plan{width:100%;border-collapse:collapse;min-width:800px}
+table.plan thead tr{background:#f8f8f8}
+table.plan th{font-size:11px;font-weight:600;color:#888;padding:8px 12px;text-align:left;white-space:nowrap}
+table.plan td{font-size:13px;padding:8px 12px;color:#1a1a1a;border-top:1px solid #f0f0f0;vertical-align:middle}
+table.plan tr:hover td{background:#fafafa}
+.qty-input{font-size:13px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;width:80px;outline:none;text-align:center}
+.qty-input:focus{border-color:#4a90d9}
+.urgency-high{color:#d93025;font-weight:600}.urgency-mid{color:#e67e00;font-weight:600}
+
+/* ── 仓库概览 ── */
+.wh-overview{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.wh-card{background:#fff;border-radius:12px;padding:14px 18px;border:2px solid #e8e8e8;cursor:pointer;transition:border-color .15s}
+.wh-card:hover{border-color:#ccc}
+.wh-card.active-0{border-color:#1a5db5;box-shadow:0 0 0 2px #d0e4fb}
+.wh-card.active-1{border-color:#1a7a3c;box-shadow:0 0 0 2px #c8e8d0}
+.wh-card-title{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.wh-card-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.wh-stat{text-align:center;padding:6px 4px;border-radius:8px;background:#f8f8f8}
+.wh-stat-label{font-size:10px;color:#aaa;margin-bottom:2px}
+.wh-stat-val{font-size:16px;font-weight:700}
+
+/* ── 杂项 ── */
+.empty{text-align:center;padding:30px;color:#bbb;font-size:13px}
+.storage-tip{font-size:11px;color:#aaa;text-align:right;margin-top:6px}
+.storage-tip span{color:#1a7a3c}
+.last-update-bar{margin-top:10px;padding:8px 12px;background:#f0f7ff;border-radius:8px;font-size:12px;color:#555}
+input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#1a5db5}
+
+/* ── 数据同步面板 ── */
+.sync-panel{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px 18px;margin-bottom:14px}
+.sync-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sync-box{border:1px solid #e8e8e8;border-radius:10px;padding:14px}
+.sync-box h3{font-size:12px;font-weight:600;color:#444;margin-bottom:6px}
+.sync-box p{font-size:11px;color:#999;margin-bottom:10px;line-height:1.5}
+.sync-drop{border:2px dashed #d0e4fb;border-radius:8px;padding:12px;text-align:center;cursor:pointer;background:#f8fbff;transition:border-color .15s;font-size:12px;color:#888}
+.sync-drop:hover,.sync-drop.drag{border-color:#4a90d9;background:#eef4ff;color:#1a5db5}
+.qr-wrap{text-align:center}
+.qr-wrap canvas{display:block;margin:0 auto 6px;border:1px solid #e8e8e8;border-radius:6px}
+.qr-hint{font-size:11px;color:#aaa}
+.step-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#1a5db5;color:#fff;border-radius:50%;font-size:10px;font-weight:700;flex-shrink:0}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}
+
+/* ══════════════════════════════════════
+   手机端响应式（≤ 768px）
+══════════════════════════════════════ */
+@media(max-width:768px){
+  body{padding:12px 10px;font-size:14px}
+  .wrap{max-width:100%}
+
+  /* 顶栏 */
+  .topbar{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:14px}
+  .topbar h1{font-size:17px}
+  .topbar>div{width:100%;justify-content:space-between}
+  .wh-switcher{flex:1}
+  .wh-btn{flex:1;justify-content:center;padding:8px 0;font-size:12px}
+  #syncToggleBtn{font-size:12px;height:36px}
+
+  /* 同步面板 */
+  .sync-grid{grid-template-columns:1fr}
+  .sync-box{padding:12px}
+
+  /* 统计卡片 */
+  .stats{grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .stat{padding:9px 10px}
+  .stat-val{font-size:18px}
+  .stat-label{font-size:10px}
+
+  /* 仓库概览 */
+  .wh-overview{grid-template-columns:1fr;gap:10px;margin-bottom:12px}
+  .wh-card{padding:12px 14px}
+  .wh-card-stats{grid-template-columns:repeat(4,1fr);gap:4px}
+  .wh-stat{padding:4px 2px}
+  .wh-stat-val{font-size:14px}
+  .wh-stat-label{font-size:9px}
+
+  /* 卡片 */
+  .scard{padding:12px 12px;margin-bottom:10px}
+
+  /* 手动添加表单：单列 */
+  .form-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .form-grid .field:first-child{grid-column:1/-1} /* 名称占满行 */
+  .form-grid button{grid-column:1/-1;height:40px;font-size:13px;justify-content:center}
+  .field input,.field select{height:36px;font-size:13px}
+
+  /* 类别管理 */
+  .cat-add input{width:100px;height:32px}
+  .cat-add .btn{height:32px}
+
+  /* 筛选栏 */
+  .search-bar{gap:6px}
+  .search-bar>div:last-child{width:100%;margin-left:0;justify-content:flex-start;gap:5px;flex-wrap:wrap}
+  .search-input-wrap{max-width:100%;min-width:0;flex:1}
+  .fbtn{padding:6px 10px;font-size:12px;height:32px}
+  #whLabel{display:none}
+
+  /* 批量操作栏 */
+  .batch-bar{padding:8px 10px;gap:8px}
+  .batch-bar .btn{height:34px;font-size:12px}
+
+  /* 表格：主库存表 → 卡片式 */
+  .table-wrap{border:none;border-radius:0;overflow:visible}
+  table.main{min-width:unset;display:block}
+  table.main thead{display:none}
+  table.main tbody{display:flex;flex-direction:column;gap:8px}
+  table.main tr{display:grid;grid-template-columns:auto 1fr;background:#fff;border:1px solid #e8e8e8;border-radius:10px;overflow:hidden;padding:0}
+  table.main tr.editing{display:flex;flex-direction:column;padding:10px;gap:6px}
+  table.main tr.del-confirm-row{display:flex;flex-direction:column;padding:10px}
+  table.main tr.del-confirm-row td{padding:0}
+  table.main tr.del-confirm-row td .cell{padding:0}
+  table.main td{border-top:none;padding:0}
+  table.main td .cell{padding:6px 10px;font-size:13px}
+
+  /* 复选框列 */
+  table.main td:first-child{grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center;padding:0 6px 0 10px;min-width:30px}
+  table.main td:first-child .cell{padding:0}
+
+  /* 手机表格：用 data-label 伪元素显示列名 */
+  table.main td[data-m]:not(:first-child)::before{
+    content:attr(data-m);
+    font-size:10px;color:#aaa;display:block;margin-bottom:1px
+  }
+  table.main td:nth-child(2){grid-column:2;font-weight:600;padding-top:8px}
+  table.main td:nth-child(3),
+  table.main td:nth-child(4){grid-column:2;padding:0}
+  table.main td:nth-child(3) .cell,
+  table.main td:nth-child(4) .cell{padding:2px 10px;font-size:11px;color:#888}
+  table.main td:nth-child(5),
+  table.main td:nth-child(6){display:none} /* 规格/单位/频率折叠进详情 */
+  table.main td:nth-child(7),
+  table.main td:nth-child(8){grid-column:2;display:inline-flex}
+  table.main td:nth-child(7) .cell,
+  table.main td:nth-child(8) .cell{padding:2px 10px;font-size:12px}
+  table.main td:nth-child(9){display:none} /* 进度条 */
+  table.main td:nth-child(10){grid-column:2;padding:0 0 4px}
+  table.main td:nth-child(10) .cell{padding:2px 10px}
+  table.main td:nth-child(11){grid-column:1/-1;border-top:1px solid #f0f0f0;background:#fafafa}
+  table.main td:nth-child(11) .cell{justify-content:flex-end;padding:6px 10px;gap:8px}
+  table.main td:nth-child(11) .bicon{font-size:18px;padding:4px 8px}
+
+  /* 采购计划表 → 卡片式 */
+  table.plan{min-width:unset;display:block}
+  table.plan thead{display:none}
+  table.plan tbody{display:flex;flex-direction:column;gap:8px}
+  table.plan tr{display:block;background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:12px}
+  table.plan td{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border:none;font-size:13px}
+  table.plan td[data-m]::before{content:attr(data-m);font-size:11px;color:#aaa;font-weight:normal}
+  table.plan td:first-child{font-weight:700;font-size:14px;border-bottom:1px solid #f0f0f0;padding-bottom:8px;margin-bottom:4px;justify-content:flex-start}
+  table.plan td:nth-child(10){background:#f6fbf6;margin:4px -12px -12px;padding:8px 12px;border-radius:0 0 10px 10px}
+  .qty-input{width:90px;height:36px;font-size:14px}
+
+  /* Tabs */
+  .tab{padding:8px 12px;font-size:12px}
+  .tab-bar{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* 导入区 */
+  .import-zone,.update-zone{padding:12px}
+  .import-zone strong,.update-zone strong{font-size:12px}
+
+  /* 类别导出 */
+  .cat-export-panel{padding:10px 12px}
+  .cat-export-btn{font-size:11px;padding:5px 10px}
+
+  /* 预览表格 */
+  .ptable-wrap{max-height:200px}
+
+  /* 两列预览区 */
+  div[style*="grid-template-columns:1fr 1fr"]{display:flex!important;flex-direction:column}
+
+  /* 按钮统一大一点方便手指点 */
+  .btn{height:36px;font-size:13px;padding:0 14px}
+  .btn.sm{height:30px;font-size:11px}
+  .del-confirm-btn,.del-cancel-btn{padding:6px 14px;font-size:12px}
+
+  /* toast 不要超出屏幕 */
+  .toast{max-width:90vw;text-align:center;white-space:normal;bottom:16px}
+}
+
+@media(max-width:400px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .wh-card-stats{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}
+  .form-grid .field:first-child{grid-column:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 顶栏 -->
+  <div class="topbar">
+    <h1>📦 库存预警管理</h1>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="wh-switcher">
+        <button class="wh-btn wh-0 active" id="whBtn0" onclick="switchWarehouse(0)">
+          <span class="wh-dot wh-dot-0"></span>工程库
+        </button>
+        <button class="wh-btn wh-1" id="whBtn1" onclick="switchWarehouse(1)">
+          <span class="wh-dot wh-dot-1"></span>日常库
+        </button>
+      </div>
+      <button class="btn" onclick="toggleSyncPanel()" id="syncToggleBtn" title="跨设备数据同步">🔄 数据同步</button>
+    </div>
+  </div>
+
+  <!-- 数据同步面板（默认折叠） -->
+  <div class="sync-panel" id="syncPanel" style="display:none">
+    <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:12px">🔄 跨设备数据同步</div>
+    <div class="sync-grid">
+      <div class="sync-box">
+        <h3>📤 从本设备导出</h3>
+        <p>将所有库存数据打包导出为备份文件，在另一台设备上导入即可恢复全部数据。</p>
+        <button class="btn success" style="width:100%;justify-content:center" onclick="exportBackup()">⬇ 导出数据备份（.json）</button>
+      </div>
+      <div class="sync-box">
+        <h3>📥 导入到本设备</h3>
+        <p>选择备份文件恢复数据，将<b style="color:#d93025">覆盖</b>本设备当前数据，操作前请确认。</p>
+        <div class="sync-drop" id="syncDrop"
+          onclick="document.getElementById('syncFileInput').click()"
+          ondragover="onSyncDragOver(event)" ondragleave="onSyncDragLeave(event)" ondrop="onSyncDrop(event)">
+          📂 点击选择备份文件 / 拖拽到此处<br>
+          <span style="font-size:10px;color:#bbb">支持 .json 备份文件</span>
+        </div>
+        <input type="file" id="syncFileInput" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+        <div id="syncImportPreview" style="display:none;margin-top:10px;padding:10px;background:#f6fbf6;border-radius:8px;font-size:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 仓库概览（汇总两仓数据） -->
+  <div class="wh-overview" id="whOverview"></div>
+
+  <!-- 当前仓库统计 -->
+  <div class="stats" id="stats"></div>
+
+  <!-- 类别管理 -->
+  <div class="scard">
+    <div class="stitle">商品类别管理</div>
+    <div class="cat-mgr" id="catMgr"></div>
+    <div class="cat-add">
+      <input id="newCatInput" placeholder="输入新类别名称" onkeydown="if(event.key==='Enter')addCat()">
+      <button class="btn" onclick="addCat()">+ 添加类别</button>
+    </div>
+  </div>
+
+  <!-- 商品批量导入 -->
+  <div class="scard">
+    <div class="stitle">Excel 批量导入商品</div>
+    <div class="import-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div style="font-size:24px">📊</div>
+      <strong>点击选择文件，或拖拽到此处</strong>
+      <p>支持 .xlsx / .xls / .csv</p>
+    </div>
+    <div class="tpl-hint">列顺序：商品名称、类别、规格、单位、使用频率(高/中/低)、当前库存、预警阈值 &nbsp;·&nbsp; <span onclick="downloadTemplate()">下载模板</span></div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])">
+    <div id="previewWrap" style="display:none" class="preview-wrap">
+      <div id="previewTable"></div>
+      <div class="preview-actions">
+        <span class="psummary" id="previewSummary"></span>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="cancelImport()">✕ 取消</button>
+          <button class="btn primary" id="confirmBtn" onclick="confirmImport()">✓ 确认导入</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 库存数量更新导入 -->
+  <div class="scard">
+    <div class="stitle">
+      <span>📥 库存数量更新导入 <span style="font-size:11px;font-weight:400;color:#aaa">— 仅更新当前库存量，不影响其他字段</span></span>
+      <button class="btn sm" onclick="downloadStockTemplate()">⬇ 下载模板</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div class="update-zone" id="stockDropZone"
+          onclick="document.getElementById('stockFileInput').click()"
+          ondragover="onStockDragOver(event)" ondragleave="onStockDragLeave(event)" ondrop="onStockDrop(event)">
+          <div style="font-size:22px">📋</div>
+          <strong>导入库存数量文件</strong>
+          <p>三列：商品名称、规格、当前库存数量</p>
+        </div>
+        <input type="file" id="stockFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleStockFile(this.files[0])">
+        <div class="tpl-hint" style="margin-top:6px">按商品名称+规格匹配更新，自动回退到仅名称匹配</div>
+      </div>
+      <div id="stockPreviewArea" style="display:none">
+        <div class="update-summary-bar" id="stockSummaryBar"></div>
+        <div class="ptable-wrap" style="max-height:140px">
+          <table class="ptable">
+            <thead><tr><th style="width:30%">商品名称</th><th style="width:16%">规格</th><th style="width:14%">原库存</th><th style="width:18%">新库存</th><th style="width:22%">状态</th></tr></thead>
+            <tbody id="stockPreviewBody"></tbody>
+          </table>
+        </div>
+        <div class="preview-actions" style="margin-top:8px">
+          <span style="font-size:11px;color:#aaa" id="stockPreviewNote"></span>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="cancelStockImport()">✕ 取消</button>
+            <button class="btn success" id="stockConfirmBtn" onclick="confirmStockImport()">✓ 确认更新</button>
+          </div>
+        </div>
+      </div>
+      <div id="stockEmptyHint" style="display:flex;align-items:center;justify-content:center;border:1px solid #e8e8e8;border-radius:10px;background:#fafafa;font-size:12px;color:#bbb;text-align:center;padding:20px">
+        上传文件后这里显示<br>匹配预览结果
+      </div>
+    </div>
+    <div id="lastUpdateInfo" style="display:none" class="last-update-bar"></div>
+  </div>
+
+  <!-- 手动添加商品 -->
+  <div class="scard">
+    <div class="stitle">手动添加商品</div>
+    <div class="form-grid">
+      <div class="field"><label>商品名称</label><input id="f-name" placeholder="如：A4复印纸" onkeydown="if(event.key==='Enter')addItem()"></div>
+      <div class="field"><label>类别</label><select id="f-cat"></select></div>
+      <div class="field"><label>规格</label><input id="f-spec" placeholder="如：A4/500张"></div>
+      <div class="field"><label>单位</label><input id="f-unit" placeholder="如：箱"></div>
+      <div class="field"><label>使用频率</label>
+        <select id="f-freq"><option value="高">高频</option><option value="中" selected>中频</option><option value="低">低频</option></select>
+      </div>
+      <div class="field"><label>当前库存</label><input id="f-stock" type="number" min="0" placeholder="0"></div>
+      <div class="field"><label>预警阈值</label><input id="f-min" type="number" min="0" placeholder="0"></div>
+      <div class="field"><label>所属仓库</label>
+        <select id="f-wh">
+          <option value="0">工程库</option>
+          <option value="1">日常库</option>
+        </select>
+      </div>
+      <button class="btn" onclick="addItem()" style="align-self:end">+ 添加</button>
+    </div>
+  </div>
+
+  <!-- 库存明细 + 采购计划 -->
+  <div class="scard" style="padding-bottom:0">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('inventory',this)">📋 库存明细</div>
+      <div class="tab" onclick="switchTab('purchase',this)">🛒 采购计划</div>
+    </div>
+
+    <!-- 库存明细 tab -->
+    <div id="tab-inventory" class="tab-content active" style="padding:14px 0 0">
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input id="searchInput" placeholder="搜索商品名称、规格、类别…" oninput="onSearch(this.value)">
+          <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
+        </div>
+        <span class="search-result-tip" id="searchTip"></span>
+        <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+          <button class="fbtn active" id="fb-all" onclick="setFilter('all',this)">全部</button>
+          <button class="fbtn" id="fb-danger" onclick="setFilter('danger',this)">⚠ 严重不足</button>
+          <button class="fbtn" id="fb-warn" onclick="setFilter('warn',this)">△ 库存偏低</button>
+          <button class="fbtn" id="fb-ok" onclick="setFilter('ok',this)">✓ 库存正常</button>
+          <div style="font-size:12px;color:#888" id="whLabel"></div>
+        </div>
+      </div>
+      <div class="batch-bar" id="batchBar">
+        <span class="batch-info" id="batchInfo"></span>
+        <button class="btn danger" onclick="batchDelete()">🗑️ 删除所选</button>
+        <button class="btn" onclick="clearSelection()">✕ 取消选择</button>
+      </div>
+      <div class="table-wrap">
+        <table class="main">
+          <thead><tr>
+            <th style="width:3%"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)"></th>
+            <th style="width:13%">商品名称</th>
+            <th style="width:8%">仓库</th>
+            <th style="width:8%">类别</th>
+            <th style="width:9%">规格</th>
+            <th style="width:6%">单位</th>
+            <th style="width:6%">频率</th>
+            <th style="width:7%">当前库存</th>
+            <th style="width:7%">预警阈值</th>
+            <th style="width:9%">库存比例</th>
+            <th style="width:9%">状态</th>
+            <th style="width:15%;text-align:right">操作</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="storage-tip" id="storageTip"></div>
+    </div>
+
+    <!-- 采购计划 tab -->
+    <div id="tab-purchase" class="tab-content" style="padding:14px 0 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:12px;color:#888">根据库存缺口和使用频率自动计算建议采购量</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="autoFillQty()">✨ 一键自动填充</button>
+          <button class="btn success" onclick="exportPlan()">⬇ 导出汇总计划</button>
+        </div>
+      </div>
+      <!-- 按类别导出供货通知单 -->
+      <div class="cat-export-panel">
+        <div class="cat-export-title">📄 按类别导出供货通知单（成都兴蓉沱源格式）</div>
+        <div class="cat-export-grid" id="catExportGrid"></div>
+      </div>
+      <div class="table-wrap">
+        <table class="plan">
+          <thead><tr>
+            <th style="width:14%">商品名称</th>
+            <th style="width:8%">仓库</th>
+            <th style="width:8%">类别</th>
+            <th style="width:9%">规格</th>
+            <th style="width:6%">单位</th>
+            <th style="width:6%">频率</th>
+            <th style="width:7%">当前库存</th>
+            <th style="width:7%">预警阈值</th>
+            <th style="width:6%">缺口</th>
+            <th style="width:8%">状态</th>
+            <th style="width:10%">计划采购量</th>
+            <th style="width:9%">紧急程度</th>
+          </tr></thead>
+          <tbody id="plan-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+// 常量 & 仓库定义
+// ──────────────────────────────────────────────────────────────
+const WAREHOUSES = ['工程库', '日常库'];
+const WH_COLORS  = ['#1a5db5', '#1a7a3c'];
+const WH_ICONS   = ['🔧', '📦'];
+
+const LS_PREFIX   = 'inv2_';
+const LS_CATS     = LS_PREFIX+'cats';
+const LS_UID      = LS_PREFIX+'uid';
+const LS_CUR_WH   = LS_PREFIX+'curWh';
+const LS_PLAN     = LS_PREFIX+'plan';
+const LS_LAST_UPD = LS_PREFIX+'lastUpd';
+function lsItems(w){ return LS_PREFIX+'items_wh'+w; }
+
+// ──────────────────────────────────────────────────────────────
+// 默认数据
+// ──────────────────────────────────────────────────────────────
+const DEFAULT_CATS = ['原材料','成品','半成品','耗材','其他'];
+const DEFAULT_ITEMS = [
+  [{id:1,name:'钢管Φ50',cat:'原材料',spec:'Φ50×3mm',unit:'根',freq:'高',stock:40,min:80,wh:0},
+   {id:2,name:'电缆线',cat:'原材料',spec:'4×6mm²',unit:'米',freq:'高',stock:120,min:200,wh:0},
+   {id:3,name:'水泥',cat:'原材料',spec:'P42.5',unit:'袋',freq:'中',stock:30,min:50,wh:0},
+   {id:4,name:'防水涂料',cat:'耗材',spec:'10kg/桶',unit:'桶',freq:'低',stock:12,min:10,wh:0}],
+  [{id:5,name:'A4复印纸',cat:'耗材',spec:'A4/500张',unit:'箱',freq:'高',stock:30,min:50,wh:1},
+   {id:6,name:'圆珠笔',cat:'耗材',spec:'0.7mm蓝色',unit:'盒',freq:'高',stock:5,min:10,wh:1},
+   {id:7,name:'订书钉',cat:'耗材',spec:'24/6',unit:'盒',freq:'低',stock:20,min:15,wh:1},
+   {id:8,name:'润滑油5L',cat:'耗材',spec:'46#/5L',unit:'桶',freq:'低',stock:3,min:10,wh:1}]
+];
+
+// ──────────────────────────────────────────────────────────────
+// 持久化
+// ──────────────────────────────────────────────────────────────
+function lsGet(key,fb){ try{const v=localStorage.getItem(key);return v!==null?JSON.parse(v):fb;}catch(e){return fb;} }
+function lsSet(key,val){ try{localStorage.setItem(key,JSON.stringify(val));}catch(e){} }
+
+function saveData(){
+  lsSet(LS_CATS,  cats);
+  lsSet(LS_UID,   uid);
+  lsSet(LS_CUR_WH, curWh);
+  lsSet(LS_PLAN,  planQty);
+  WAREHOUSES.forEach((_,w)=>lsSet(lsItems(w), allItems[w]));
+  updateStorageTip();
+}
+function updateStorageTip(){
+  const el=document.getElementById('storageTip'); if(!el)return;
+  try{
+    const total = WAREHOUSES.reduce((s,_,w)=>s+(allItems[w]||[]).length,0);
+    const t=new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+    el.innerHTML=`<span>✓ 已自动保存</span> · ${total} 条记录 · ${t}`;
+  }catch(e){}
+}
+
+// ──────────────────────────────────────────────────────────────
+// 状态
+// ──────────────────────────────────────────────────────────────
+let cats    = lsGet(LS_CATS, DEFAULT_CATS);
+let uid     = lsGet(LS_UID,  9);
+let curWh   = lsGet(LS_CUR_WH, 0);
+let planQty = lsGet(LS_PLAN, {});
+let allItems= [
+  lsGet(lsItems(0), DEFAULT_ITEMS[0]),
+  lsGet(lsItems(1), DEFAULT_ITEMS[1])
+];
+let currentFilter='all', pendingRows=[], editingId=null, deletingId=null, selectedIds=new Set();
+let stockPendingRows=[], searchKeyword='';
+
+// 当前仓库商品快捷引用
+function items(){ return allItems[curWh]; }
+
+// ──────────────────────────────────────────────────────────────
+// 工具
+// ──────────────────────────────────────────────────────────────
+function getStatus(s,m){ if(!m)return 'ok'; const r=s/m; return r<=0.25?'danger':r<=0.6?'warn':'ok'; }
+function statusLabel(st){ return st==='danger'?'严重不足':st==='warn'?'库存偏低':'库存正常'; }
+function pct(s,m){ return !m?100:Math.min(100,Math.round(s/m*100)); }
+function freqLabel(f){ return f==='高'?'高频':f==='低'?'低频':'中频'; }
+function freqClass(f){ return f==='高'?'freq-high':f==='低'?'freq-low':'freq-mid'; }
+function suggestQty(item){ const gap=Math.max(0,item.min-item.stock); const mul=item.freq==='高'?2:item.freq==='中'?1.5:1.2; return Math.ceil(gap*mul); }
+function urgency(item){ const st=getStatus(item.stock,item.min); if(st==='danger'&&item.freq==='高')return '🔴 极紧急'; if(st==='danger')return '🟠 紧急'; if(st==='warn'&&item.freq==='高')return '🟡 较紧急'; return '🟢 一般'; }
+function urgencyClass(item){ const st=getStatus(item.stock,item.min); if(st==='danger')return 'urgency-high'; if(st==='warn')return 'urgency-mid'; return ''; }
+function whBadge(w){ return `<span class="wh-badge-${w}">${WH_ICONS[w]} ${WAREHOUSES[w]}</span>`; }
+
+// ──────────────────────────────────────────────────────────────
+// 仓库切换
+// ──────────────────────────────────────────────────────────────
+function switchWarehouse(w){
+  curWh = w;
+  document.querySelectorAll('.wh-btn').forEach((b,i)=>b.classList.toggle('active', i===w));
+  editingId=null; deletingId=null; selectedIds.clear();
+  saveData(); render();
+}
+
+// ──────────────────────────────────────────────────────────────
+// 仓库概览（两个仓库卡片）
+// ──────────────────────────────────────────────────────────────
+function renderOverview(){
+  const el = document.getElementById('whOverview');
+  el.innerHTML = WAREHOUSES.map((name,w)=>{
+    const arr = allItems[w]||[];
+    const d=arr.filter(i=>getStatus(i.stock,i.min)==='danger').length;
+    const wn=arr.filter(i=>getStatus(i.stock,i.min)==='warn').length;
+    const ok=arr.filter(i=>getStatus(i.stock,i.min)==='ok').length;
+    const activeClass = curWh===w ? `active-${w}` : '';
+    return `<div class="wh-card ${activeClass}" onclick="switchWarehouse(${w})">
+      <div class="wh-card-title" style="color:${WH_COLORS[w]}">${WH_ICONS[w]} ${name}
+        <span style="font-size:11px;font-weight:400;color:#aaa;margin-left:4px">${arr.length} 种商品</span>
+      </div>
+      <div class="wh-card-stats">
+        <div class="wh-stat"><div class="wh-stat-label">总商品</div><div class="wh-stat-val">${arr.length}</div></div>
+        <div class="wh-stat"><div class="wh-stat-label">严重不足</div><div class="wh-stat-val" style="color:#d93025">${d}</div></div>
+        <div class="wh-stat"><div class="wh-stat-label">库存偏低</div><div class="wh-stat-val" style="color:#e67e00">${wn}</div></div>
+        <div class="wh-stat"><div class="wh-stat-label">库存正常</div><div class="wh-stat-val" style="color:#1a7a3c">${ok}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ──────────────────────────────────────────────────────────────
+// 当前仓库统计
+// ──────────────────────────────────────────────────────────────
+function renderStats(){
+  const arr=items();
+  const d=arr.filter(i=>getStatus(i.stock,i.min)==='danger').length;
+  const wn=arr.filter(i=>getStatus(i.stock,i.min)==='warn').length;
+  const ok=arr.filter(i=>getStatus(i.stock,i.min)==='ok').length;
+  const al=arr.filter(i=>getStatus(i.stock,i.min)!=='ok').length;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-label">当前仓库</div><div class="stat-val" style="font-size:16px;color:${WH_COLORS[curWh]}">${WH_ICONS[curWh]} ${WAREHOUSES[curWh]}</div></div>
+    <div class="stat"><div class="stat-label">商品总数</div><div class="stat-val">${arr.length}</div></div>
+    <div class="stat"><div class="stat-label">严重不足</div><div class="stat-val danger">${d}</div></div>
+    <div class="stat"><div class="stat-label">库存偏低</div><div class="stat-val warn">${wn}</div></div>
+    <div class="stat"><div class="stat-label">库存正常</div><div class="stat-val ok">${ok}</div></div>
+    <div class="stat"><div class="stat-label">待采购</div><div class="stat-val info">${al}</div></div>`;
+  const lbl=document.getElementById('whLabel');
+  if(lbl) lbl.innerHTML=`当前：${whBadge(curWh)}`;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 类别管理
+// ──────────────────────────────────────────────────────────────
+function renderCatMgr(){
+  document.getElementById('catMgr').innerHTML=cats.map(c=>
+    `<span class="cat-tag">${c}<button onclick="deleteCat('${c.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">×</button></span>`
+  ).join('');
+  const sel=document.getElementById('f-cat');
+  if(sel){const cur=sel.value;sel.innerHTML=cats.map(c=>`<option${c===cur?' selected':''}>${c}</option>`).join('');}
+}
+function addCat(){
+  const inp=document.getElementById('newCatInput'),name=inp.value.trim();
+  if(!name){inp.focus();return;}
+  if(cats.includes(name)){showToast('类别已存在');return;}
+  cats.push(name);inp.value='';saveData();renderCatMgr();showToast('已添加类别：'+name);
+}
+function deleteCat(name){
+  if(allItems.some(arr=>arr.some(i=>i.cat===name))){showToast('该类别有商品在使用，无法删除');return;}
+  if(cats.length<=1){showToast('至少保留一个类别');return;}
+  cats=cats.filter(c=>c!==name);saveData();renderCatMgr();showToast('已删除类别：'+name);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 库存明细表格
+// ──────────────────────────────────────────────────────────────
+function getFiltered(){
+  return items().filter(i=>{
+    const statusMatch = currentFilter==='all'||getStatus(i.stock,i.min)===currentFilter;
+    if(!statusMatch) return false;
+    if(!searchKeyword) return true;
+    const kw = searchKeyword.toLowerCase();
+    return (i.name||'').toLowerCase().includes(kw)
+      || (i.spec||'').toLowerCase().includes(kw)
+      || (i.cat||'').toLowerCase().includes(kw)
+      || (i.unit||'').toLowerCase().includes(kw);
+  });
+}
+function onSearch(val){
+  searchKeyword=val.trim();
+  const clr=document.getElementById('searchClear');
+  if(clr) clr.classList.toggle('visible', searchKeyword.length>0);
+  renderTable();
+}
+function clearSearch(){
+  searchKeyword='';
+  const inp=document.getElementById('searchInput');
+  if(inp) inp.value='';
+  const clr=document.getElementById('searchClear');
+  if(clr) clr.classList.remove('visible');
+  renderTable();
+}
+function updateBatchBar(){
+  const bar=document.getElementById('batchBar'),info=document.getElementById('batchInfo'),ca=document.getElementById('checkAll');
+  if(selectedIds.size>0){bar.classList.add('visible');info.textContent=`已选 ${selectedIds.size} 项`;}
+  else{bar.classList.remove('visible');}
+  const filtered=getFiltered();
+  if(ca){ca.checked=filtered.length>0&&filtered.every(i=>selectedIds.has(i.id));ca.indeterminate=selectedIds.size>0&&!ca.checked;}
+}
+function toggleCheckAll(cb){
+  const filtered=getFiltered();
+  if(cb.checked)filtered.forEach(i=>selectedIds.add(i.id));
+  else filtered.forEach(i=>selectedIds.delete(i.id));
+  renderTable();
+}
+function toggleCheck(id,cb){
+  if(cb.checked)selectedIds.add(id);else selectedIds.delete(id);
+  updateBatchBar();
+  const filtered=getFiltered(),ca=document.getElementById('checkAll');
+  if(ca){ca.checked=filtered.length>0&&filtered.every(i=>selectedIds.has(i.id));ca.indeterminate=selectedIds.size>0&&!ca.checked;}
+}
+function clearSelection(){selectedIds.clear();renderTable();}
+function batchDelete(){
+  if(!selectedIds.size)return;
+  const bar=document.getElementById('batchBar');
+  bar.innerHTML=`<span class="batch-info" style="color:#d93025">确认删除选中的 <b>${selectedIds.size}</b> 条商品？</span>
+    <button class="btn danger" onclick="doBatchDelete()">确认删除</button>
+    <button class="btn" onclick="resetBatchBar()">取消</button>`;
+}
+function doBatchDelete(){
+  const count=selectedIds.size;
+  allItems[curWh]=allItems[curWh].filter(i=>!selectedIds.has(i.id));
+  selectedIds.forEach(id=>delete planQty[id]);
+  selectedIds.clear();saveData();render();resetBatchBar();
+  showToast(`已删除 ${count} 条商品`);
+}
+function resetBatchBar(){
+  document.getElementById('batchBar').innerHTML=`
+    <span class="batch-info" id="batchInfo"></span>
+    <button class="btn danger" onclick="batchDelete()">🗑️ 删除所选</button>
+    <button class="btn" onclick="clearSelection()">✕ 取消选择</button>`;
+  updateBatchBar();
+}
+
+function renderTable(){
+  const filtered=getFiltered(),tb=document.getElementById('tbody');
+  // 搜索结果提示
+  const tip=document.getElementById('searchTip');
+  if(tip){
+    if(searchKeyword){
+      tip.textContent=`找到 ${filtered.length} 条结果`;
+    } else {
+      tip.textContent='';
+    }
+  }
+  if(!filtered.length){tb.innerHTML=`<tr><td colspan="12" class="empty">暂无数据</td></tr>`;updateBatchBar();return;}
+  tb.innerHTML=filtered.map(i=>{
+    const st=getStatus(i.stock,i.min),p=pct(i.stock,i.min);
+    const isEdit=editingId===i.id,isDel=deletingId===i.id,isSel=selectedIds.has(i.id);
+    if(isDel)return `<tr class="del-confirm-row">
+      <td colspan="8"><div class="cell" style="color:#d93025">确认删除「${i.name}」？</div></td>
+      <td colspan="4"><div class="cell" style="justify-content:flex-end;gap:8px">
+        <button class="del-confirm-btn" onclick="confirmDelete(${i.id})">确认删除</button>
+        <button class="del-cancel-btn" onclick="cancelDelete()">取消</button>
+      </div></td></tr>`;
+    if(isEdit){
+      const catOpts=cats.map(c=>`<option${c===i.cat?' selected':''}>${c}</option>`).join('');
+      const freqOpts=['高','中','低'].map(f=>`<option${f===i.freq?' selected':''}>${f}</option>`).join('');
+      const whOpts=WAREHOUSES.map((n,w)=>`<option value="${w}"${w===i.wh?' selected':''}>${n}</option>`).join('');
+      return `<tr class="editing">
+        <td><div class="cell"></div></td>
+        <td><div class="cell"><input class="cell-input" id="e-name" value="${i.name.replace(/"/g,'&quot;')}"></div></td>
+        <td><div class="cell"><select class="cell-select" id="e-wh" style="width:70px">${whOpts}</select></div></td>
+        <td><div class="cell"><select class="cell-select" id="e-cat">${catOpts}</select></div></td>
+        <td><div class="cell"><input class="cell-input" id="e-spec" value="${(i.spec||'').replace(/"/g,'&quot;')}"></div></td>
+        <td><div class="cell"><input class="cell-input" id="e-unit" value="${(i.unit||'').replace(/"/g,'&quot;')}" style="width:45px"></div></td>
+        <td><div class="cell"><select class="cell-select" id="e-freq" style="width:55px">${freqOpts}</select></div></td>
+        <td><div class="cell"><input class="cell-input" id="e-stock" type="number" min="0" value="${i.stock}" style="width:50px"></div></td>
+        <td><div class="cell"><input class="cell-input" id="e-min" type="number" min="0" value="${i.min}" style="width:50px"></div></td>
+        <td><div class="cell"><div class="pbar"><div class="pfill ${st}" style="width:${p}%"></div></div></div></td>
+        <td><div class="cell"><span class="badge ${st}">${statusLabel(st)}</span></div></td>
+        <td><div class="cell" style="justify-content:flex-end;gap:4px">
+          <button class="bicon save-btn" onclick="saveEdit(${i.id})">✓ 保存</button>
+          <button class="bicon cancel-btn" onclick="cancelEdit()">✕</button>
+        </div></td></tr>`;
+    }
+    return `<tr class="${isSel?'selected':''}">
+      <td><div class="cell"><input type="checkbox" ${isSel?'checked':''} onchange="toggleCheck(${i.id},this)"></div></td>
+      <td><div class="cell" style="font-weight:600">${i.name}</div></td>
+      <td data-m="仓库"><div class="cell">${whBadge(i.wh!==undefined?i.wh:curWh)}</div></td>
+      <td data-m="类别"><div class="cell" style="color:#888">${i.cat}</div></td>
+      <td data-m="规格"><div class="cell" style="color:#666;font-size:11px">${i.spec||'—'}</div></td>
+      <td data-m="单位"><div class="cell" style="color:#888">${i.unit||'—'}</div></td>
+      <td data-m="频率"><div class="cell"><span class="freq-badge ${freqClass(i.freq)}">${freqLabel(i.freq)}</span></div></td>
+      <td data-m="当前库存"><div class="cell"><b>${i.stock}</b></div></td>
+      <td data-m="预警阈值"><div class="cell" style="color:#888">${i.min}</div></td>
+      <td><div class="cell"><div class="pbar"><div class="pfill ${st}" style="width:${p}%"></div></div></div></td>
+      <td data-m="状态"><div class="cell"><span class="badge ${st}">${statusLabel(st)}</span></div></td>
+      <td><div class="cell" style="justify-content:flex-end;gap:4px">
+        <button class="bicon" onclick="startEdit(${i.id})" title="编辑">✏️</button>
+        <button class="bicon" onclick="startDelete(${i.id})" title="删除">🗑️</button>
+      </div></td></tr>`;
+  }).join('');
+  updateBatchBar();
+}
+
+function startEdit(id){editingId=id;deletingId=null;renderTable();}
+function cancelEdit(){editingId=null;renderTable();}
+function saveEdit(id){
+  const item=items().find(i=>i.id===id);if(!item)return;
+  const name=document.getElementById('e-name').value.trim();
+  const stock=parseInt(document.getElementById('e-stock').value);
+  const min=parseInt(document.getElementById('e-min').value);
+  if(!name){showToast('名称不能为空');return;}
+  if(isNaN(stock)||stock<0){showToast('库存数量无效');return;}
+  if(isNaN(min)||min<0){showToast('预警阈值无效');return;}
+  const newWh=parseInt(document.getElementById('e-wh').value);
+  item.name=name;item.cat=document.getElementById('e-cat').value;
+  item.spec=document.getElementById('e-spec').value.trim();
+  item.unit=document.getElementById('e-unit').value.trim();
+  item.freq=document.getElementById('e-freq').value;
+  item.stock=stock;item.min=min;
+  // 跨仓库移动
+  if(newWh!==curWh){
+    allItems[curWh]=allItems[curWh].filter(i=>i.id!==id);
+    item.wh=newWh;allItems[newWh].push(item);
+  } else {item.wh=curWh;}
+  editingId=null;saveData();render();showToast('已保存');
+}
+function startDelete(id){deletingId=id;editingId=null;renderTable();}
+function cancelDelete(){deletingId=null;renderTable();}
+function confirmDelete(id){
+  const item=items().find(i=>i.id===id);
+  allItems[curWh]=allItems[curWh].filter(i=>i.id!==id);
+  delete planQty[id];selectedIds.delete(id);
+  deletingId=null;saveData();render();showToast('已删除：'+(item?item.name:''));
+}
+
+function addItem(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){document.getElementById('f-name').focus();return;}
+  const wh=parseInt(document.getElementById('f-wh').value)||0;
+  const item={id:uid++,name,
+    cat:document.getElementById('f-cat').value,
+    spec:document.getElementById('f-spec').value.trim(),
+    unit:document.getElementById('f-unit').value.trim(),
+    freq:document.getElementById('f-freq').value,
+    stock:parseInt(document.getElementById('f-stock').value)||0,
+    min:parseInt(document.getElementById('f-min').value)||0,
+    wh};
+  allItems[wh].push(item);
+  ['f-name','f-spec','f-unit','f-stock','f-min'].forEach(id=>document.getElementById(id).value='');
+  saveData();render();showToast(`已添加「${name}」到${WAREHOUSES[wh]}`);
+}
+
+function setFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderTable();
+}
+
+// ──────────────────────────────────────────────────────────────
+// 采购计划（当前仓库预警商品）
+// ──────────────────────────────────────────────────────────────
+function renderPlan(){
+  const alerts=items().filter(i=>getStatus(i.stock,i.min)!=='ok')
+    .sort((a,b)=>{const ord={danger:0,warn:1};const sa=getStatus(a.stock,a.min),sb=getStatus(b.stock,b.min);
+      if(ord[sa]!==ord[sb])return ord[sa]-ord[sb];const fo={高:0,中:1,低:2};return fo[a.freq]-fo[b.freq];});
+  const tb=document.getElementById('plan-tbody');
+  if(!alerts.length){tb.innerHTML=`<tr><td colspan="12" class="empty">🎉 ${WAREHOUSES[curWh]} 库存充足，暂无需要采购的商品！</td></tr>`;return;}
+  tb.innerHTML=alerts.map(i=>{
+    const st=getStatus(i.stock,i.min),gap=Math.max(0,i.min-i.stock),suggest=suggestQty(i);
+    const qty=planQty[i.id]!==undefined?planQty[i.id]:suggest;
+    return `<tr>
+      <td style="font-weight:600">${i.name}</td>
+      <td data-m="仓库">${whBadge(i.wh!==undefined?i.wh:curWh)}</td>
+      <td data-m="类别" style="color:#888">${i.cat}</td>
+      <td data-m="规格" style="color:#666;font-size:11px">${i.spec||'—'}</td>
+      <td data-m="单位" style="color:#888">${i.unit||'—'}</td>
+      <td data-m="频率"><span class="freq-badge ${freqClass(i.freq)}">${freqLabel(i.freq)}</span></td>
+      <td data-m="当前库存">${i.stock}</td><td data-m="预警阈值">${i.min}</td>
+      <td data-m="缺口" style="color:#d93025;font-weight:600">${gap>0?'-'+gap:'0'}</td>
+      <td data-m="状态"><span class="badge ${st}">${statusLabel(st)}</span></td>
+      <td data-m="计划采购量">
+        <input class="qty-input" type="number" min="0" value="${qty}" onchange="setPlanQty(${i.id},this.value)" title="建议：${suggest}${i.unit||''}">
+        <div style="font-size:10px;color:#aaa;margin-top:2px">建议 ${suggest}${i.unit||''}</div>
+      </td>
+      <td data-m="紧急程度" class="${urgencyClass(i)}">${urgency(i)}</td>
+    </tr>`;
+  }).join('');
+}
+function setPlanQty(id,val){planQty[id]=Math.max(0,parseInt(val)||0);saveData();}
+function autoFillQty(){
+  items().filter(i=>getStatus(i.stock,i.min)!=='ok').forEach(i=>{planQty[i.id]=suggestQty(i);});
+  saveData();renderPlan();renderStats();showToast('已自动填充建议采购量');
+}
+function exportPlan(){
+  const alerts=items().filter(i=>getStatus(i.stock,i.min)!=='ok');
+  if(!alerts.length){showToast('暂无需要采购的商品');return;}
+  const rows=[['仓库','商品名称','类别','规格','单位','使用频率','当前库存','预警阈值','库存缺口','状态','计划采购量','紧急程度']];
+  alerts.forEach(i=>{
+    const gap=Math.max(0,i.min-i.stock),qty=planQty[i.id]!==undefined?planQty[i.id]:suggestQty(i);
+    rows.push([WAREHOUSES[i.wh!==undefined?i.wh:curWh],i.name,i.cat,i.spec||'',i.unit||'',i.freq+'频',i.stock,i.min,gap,statusLabel(getStatus(i.stock,i.min)),qty,urgency(i).replace(/[🔴🟠🟡🟢]/g,'').trim()]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[8,14,8,12,6,8,8,8,8,8,10,8].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'采购计划');
+  XLSX.writeFile(wb,`采购计划_${WAREHOUSES[curWh]}_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'')}.xlsx`);
+  showToast('采购计划已导出');
+}
+
+// ──────────────────────────────────────────────────────────────
+// 按类别导出供货通知单（复现原模板格式）
+// ──────────────────────────────────────────────────────────────
+function renderCatExportGrid(){
+  const alerts = items().filter(i=>getStatus(i.stock,i.min)!=='ok');
+  const usedCats = [...new Set(alerts.map(i=>i.cat))].sort();
+  const grid = document.getElementById('catExportGrid');
+  if(!grid) return;
+  if(!alerts.length){
+    grid.innerHTML='<span style="font-size:12px;color:#aaa">当前仓库无预警商品，无需采购</span>';
+    return;
+  }
+  grid.innerHTML = `
+    <button class="cat-export-btn cat-export-all" onclick="exportNotice(null)">📄 导出全部（${alerts.length} 项）</button>
+    ${usedCats.map(cat=>{
+      const cnt = alerts.filter(i=>i.cat===cat).length;
+      return `<button class="cat-export-btn" onclick="exportNotice('${cat.replace(/'/g,"\\'")}')">
+        ${cat}（${cnt} 项）
+      </button>`;
+    }).join('')}`;
+}
+
+function exportNotice(filterCat){
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+  const whName = WAREHOUSES[curWh];
+
+  let alerts = items().filter(i=>getStatus(i.stock,i.min)!=='ok');
+  if(filterCat) alerts = alerts.filter(i=>i.cat===filterCat);
+  alerts.sort((a,b)=>{const ord={danger:0,warn:1};const sa=getStatus(a.stock,a.min),sb=getStatus(b.stock,b.min);
+    if(ord[sa]!==ord[sb])return ord[sa]-ord[sb];const fo={高:0,中:1,低:2};return fo[a.freq]-fo[b.freq];});
+  if(!alerts.length){showToast('该类别无预警商品');return;}
+
+  // ── 模板原始文件（base64），完全保留原始格式 ──
+  const TPL_B64 = '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';
+
+  // 把 base64 转成 ArrayBuffer
+  const binStr = atob(TPL_B64);
+  const bytes = new Uint8Array(binStr.length);
+  for(let i=0;i<binStr.length;i++) bytes[i]=binStr.charCodeAt(i);
+
+  JSZip.loadAsync(bytes).then(zip=>{
+    // ── 修改 sharedStrings.xml：追加新字符串 ──
+    return zip.file('xl/sharedStrings.xml').async('string').then(ssXml=>{
+
+      // 解析已有 SharedStrings，原模板有15个（索引0-14）
+      // 我们在末尾追加：下单时间日期（替换原"下单时间："索引4）
+      // 以及每个数据行的 物资名称、规格型号、单位、备注
+
+      // 构建新增字符串列表
+      const newStrings = [];
+      function escXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+      function addStr(s){ newStrings.push(s); return 15 + newStrings.length - 1; } // 返回索引
+
+      // 下单时间（完整）
+      const dateIdx = addStr(escXml('下单时间：' + dateStr));
+
+      // 每行数据索引
+      const rowData = alerts.map(item=>{
+        const qty = planQty[item.id]!==undefined ? planQty[item.id] : suggestQty(item);
+        const remark = getStatus(item.stock,item.min)==='danger'?'紧急':'';
+        return {
+          nameIdx:  addStr(escXml(item.name||'')),
+          specIdx:  addStr(escXml(item.spec||'')),
+          unitIdx:  addStr(escXml(item.unit||'')),
+          qty,
+          remarkIdx: addStr(escXml(remark))
+        };
+      });
+
+      // 把新字符串追加到 sharedStrings.xml
+      const newSis = newStrings.map(s=>`<si><t xml:space="preserve">${s}</t></si>`).join('');
+      const totalCount = 15 + newStrings.length;
+      let newSsXml = ssXml
+        .replace(/count="\d+"/, `count="${totalCount}"`)
+        .replace(/uniqueCount="\d+"/, `uniqueCount="${totalCount}"`)
+        .replace('</sst>', newSis + '</sst>');
+      zip.file('xl/sharedStrings.xml', newSsXml);
+
+      // ── 修改 sheet1.xml：填入数据行 ──
+      return zip.file('xl/worksheets/sheet1.xml').async('string').then(shXml=>{
+
+        // Row 4 (r="4"): E4 替换为新下单时间索引
+        shXml = shXml.replace(
+          /<c r="E4" s="5" t="s"><v>4<\/v><\/c>/,
+          `<c r="E4" s="5" t="s"><v>${dateIdx}</v></c>`
+        );
+
+        // 数据行 7~27 (r="7" to r="27")，模板有21行
+        // 逐行替换 B/C/D/E/F 列的内容，A列（序号）保持原数字不变
+        for(let i=0;i<21;i++){
+          const rowNum = 7 + i;
+          const item = rowData[i]; // 可能 undefined（商品少于21条）
+
+          if(item){
+            // B: 物资名称
+            shXml = shXml.replace(
+              new RegExp(`(<c r="B${rowNum}" s="7")(/?>|><\\/c>)`),
+              `<c r="B${rowNum}" s="7" t="s"><v>${item.nameIdx}</v></c>`
+            );
+            // C: 规格型号
+            shXml = shXml.replace(
+              new RegExp(`(<c r="C${rowNum}" s="7")(/?>|><\\/c>)`),
+              `<c r="C${rowNum}" s="7" t="s"><v>${item.specIdx}</v></c>`
+            );
+            // D: 单位
+            shXml = shXml.replace(
+              new RegExp(`(<c r="D${rowNum}" s="7")(/?>|><\\/c>)`),
+              `<c r="D${rowNum}" s="7" t="s"><v>${item.unitIdx}</v></c>`
+            );
+            // E: 数量（数字）
+            shXml = shXml.replace(
+              new RegExp(`(<c r="E${rowNum}" s="7")(/?>|><\\/c>)`),
+              `<c r="E${rowNum}" s="7"><v>${item.qty}</v></c>`
+            );
+            // F: 备注
+            shXml = shXml.replace(
+              new RegExp(`(<c r="F${rowNum}" s="8")(/?>|><\\/c>)`),
+              `<c r="F${rowNum}" s="8" t="s"><v>${item.remarkIdx}</v></c>`
+            );
+          }
+          // 如果没有商品数据，该行保持原空值（模板本来就是空的）
+        }
+
+        zip.file('xl/worksheets/sheet1.xml', shXml);
+
+        // ── 打包输出 ──
+        return zip.generateAsync({type:'blob', compression:'DEFLATE'});
+      });
+    });
+  }).then(blob=>{
+    const catLabel = filterCat ? `_${filterCat}` : '_全部类别';
+    const fname = `供货通知单_${whName}${catLabel}_${dateStr}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    showToast(`已导出：${fname}`);
+  }).catch(err=>{
+    console.error(err);
+    showToast('导出失败：' + err.message);
+  });
+}
+
+
+// ──────────────────────────────────────────────────────────────
+// Tab 切换
+// ──────────────────────────────────────────────────────────────
+function switchTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');document.getElementById('tab-'+name).classList.add('active');
+  if(name==='purchase'){renderPlan();renderCatExportGrid();}
+}
+
+// ──────────────────────────────────────────────────────────────
+// 主渲染
+// ──────────────────────────────────────────────────────────────
+function render(){
+  renderOverview();renderStats();renderTable();updateStorageTip();
+  // 如果采购计划 tab 是激活状态，同步刷新
+  const pt=document.getElementById('tab-purchase');
+  if(pt&&pt.classList.contains('active')){renderPlan();renderCatExportGrid();}
+}
+
+// ──────────────────────────────────────────────────────────────
+// Toast
+// ──────────────────────────────────────────────────────────────
+function showToast(msg,dur=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// ──────────────────────────────────────────────────────────────
+// Excel 批量导入商品
+// ──────────────────────────────────────────────────────────────
+function onDragOver(e){e.preventDefault();document.getElementById('dropZone').classList.add('drag');}
+function onDragLeave(){document.getElementById('dropZone').classList.remove('drag');}
+function onDrop(e){e.preventDefault();document.getElementById('dropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleFile(f);}
+function handleFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['xlsx','xls','csv'].includes(ext)){showToast('仅支持 .xlsx/.xls/.csv');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});parseRows(rows,file.name);}catch(err){showToast('文件解析失败');}};
+  reader.readAsArrayBuffer(file);
+}
+function parseRows(rows,filename){
+  if(!rows.length){showToast('文件为空');return;}
+  let start=0;const first=rows[0].map(c=>String(c).trim().toLowerCase());
+  if(first.some(c=>c.includes('名称')||c.includes('name')||c.includes('商品')))start=1;
+  const parsed=[];
+  for(let i=start;i<rows.length;i++){
+    const r=rows[i];if(!r||r.every(c=>c===''||c===null||c===undefined))continue;
+    const name=String(r[0]||'').trim();
+    const catRaw=String(r[1]||'').trim();const cat=cats.includes(catRaw)?catRaw:(cats[0]||'其他');
+    const spec=String(r[2]||'').trim();const unit=String(r[3]||'').trim();
+    const freqRaw=String(r[4]||'').trim();const freq=['高','中','低'].includes(freqRaw)?freqRaw:'中';
+    const stock=parseInt(r[5]);const min=parseInt(r[6]);
+    const errs=[];if(!name)errs.push('名称为空');if(isNaN(stock)||stock<0)errs.push('库存无效');if(isNaN(min)||min<0)errs.push('阈值无效');
+    parsed.push({name,cat,spec,unit,freq,stock:isNaN(stock)?0:stock,min:isNaN(min)?0:min,errs});
+  }
+  if(!parsed.length){showToast('未读取到有效数据');return;}
+  pendingRows=parsed;
+  const valid=parsed.filter(r=>!r.errs.length),invalid=parsed.filter(r=>r.errs.length);
+  document.getElementById('previewSummary').innerHTML=`来自 <b>${filename}</b> · 共 <b>${parsed.length}</b> 行 · 可导入 <b style="color:#1a7a3c">${valid.length}</b> 条${invalid.length?` · <span style="color:#d93025">${invalid.length} 条有误</span>`:''}`;
+  const cb=document.getElementById('confirmBtn');cb.disabled=!valid.length;cb.style.opacity=valid.length?1:.5;
+  document.getElementById('previewTable').innerHTML=`<div class="ptable-wrap"><table class="ptable">
+    <thead><tr><th>商品名称</th><th>类别</th><th>规格</th><th>单位</th><th>频率</th><th>库存</th><th>阈值</th><th>说明</th></tr></thead>
+    <tbody>${parsed.map(r=>{const ok=!r.errs.length;return `<tr style="${ok?'':'background:#fff0f0'}">
+      <td>${r.name||'（空）'}</td><td>${r.cat}</td><td>${r.spec||'—'}</td><td>${r.unit||'—'}</td><td>${r.freq}频</td>
+      <td>${r.stock}</td><td>${r.min}</td>
+      <td style="color:${ok?'#1a7a3c':'#d93025'};font-size:11px">${ok?'正常':r.errs.join('，')}</td>
+    </tr>`;}).join('')}</tbody></table></div>`;
+  document.getElementById('previewWrap').style.display='block';
+}
+function confirmImport(){
+  const valid=pendingRows.filter(r=>!r.errs.length);
+  valid.forEach(r=>allItems[curWh].push({id:uid++,name:r.name,cat:r.cat,spec:r.spec,unit:r.unit,freq:r.freq,stock:r.stock,min:r.min,wh:curWh}));
+  cancelImport();saveData();render();showToast(`成功导入 ${valid.length} 条商品到${WAREHOUSES[curWh]}`);
+}
+function cancelImport(){pendingRows=[];document.getElementById('previewWrap').style.display='none';document.getElementById('fileInput').value='';}
+function downloadTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([['商品名称','类别','规格','单位','使用频率(高/中/低)','当前库存','预警阈值'],['A4复印纸','耗材','A4/500张','箱','高',30,50],['螺丝M6×20','原材料','M6×20mm','包','中',120,100]]);
+  ws['!cols']=[14,8,14,6,16,8,8].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'库存数据');
+  XLSX.writeFile(wb,`库存导入模板_${WAREHOUSES[curWh]}.xlsx`);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 库存数量更新导入
+// ──────────────────────────────────────────────────────────────
+function onStockDragOver(e){e.preventDefault();document.getElementById('stockDropZone').classList.add('drag');}
+function onStockDragLeave(){document.getElementById('stockDropZone').classList.remove('drag');}
+function onStockDrop(e){e.preventDefault();document.getElementById('stockDropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleStockFile(f);}
+function handleStockFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['xlsx','xls','csv'].includes(ext)){showToast('仅支持 .xlsx/.xls/.csv');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});parseStockRows(rows,file.name);}catch(err){showToast('文件解析失败');}};
+  reader.readAsArrayBuffer(file);
+}
+function parseStockRows(rows,filename){
+  if(!rows.length){showToast('文件为空');return;}
+  let start=0;const first=rows[0].map(c=>String(c).trim().toLowerCase());
+  if(first.some(c=>c.includes('名称')||c.includes('name')||c.includes('商品')))start=1;
+  const hasSpec=start>0?first.some(c=>c.includes('规格')||c.includes('spec')):rows.slice(1,4).some(r=>String(r[1]||'').trim()!=='');
+  const stockCol=hasSpec?2:1;
+  const parsed=[];
+  for(let i=start;i<rows.length;i++){
+    const r=rows[i];if(!r||r.every(c=>c===''||c===null||c===undefined))continue;
+    const name=String(r[0]||'').trim();const spec=hasSpec?String(r[1]||'').trim():'';const newStock=parseInt(r[stockCol]);
+    if(!name)continue;
+    let matched=spec?items().find(item=>item.name===name&&(item.spec||'')===spec):null;
+    if(!matched)matched=items().find(item=>item.name===name);
+    parsed.push({name,spec,newStock:isNaN(newStock)?null:newStock,matchedId:matched?matched.id:null,oldStock:matched?matched.stock:null,matchedSpec:matched?(matched.spec||''):null,err:isNaN(newStock)?'数量无效':(!matched?'未找到商品':'')});
+  }
+  if(!parsed.length){showToast('未读取到有效数据');return;}
+  stockPendingRows=parsed;
+  const matched=parsed.filter(r=>r.matchedId&&!r.err),unmatched=parsed.filter(r=>!r.matchedId),invalid=parsed.filter(r=>r.matchedId&&r.err);
+  const unchanged=matched.filter(r=>r.newStock===r.oldStock),changed=matched.filter(r=>r.newStock!==r.oldStock);
+  document.getElementById('stockSummaryBar').innerHTML=`
+    <div>共读取 <span>${parsed.length}</span> 行</div>
+    <div class="match-ok">✓ 匹配 <span>${matched.length}</span> 条</div>
+    <div style="color:#888">变化 <span style="color:#1a1a1a">${changed.length}</span> 条 / 无变化 ${unchanged.length} 条</div>
+    ${unmatched.length?`<div class="match-skip">⚠ 未匹配 <span>${unmatched.length}</span> 条</div>`:''}
+    ${invalid.length?`<div style="color:#d93025">✕ 无效 <span>${invalid.length}</span> 条</div>`:''}`;
+  document.getElementById('stockPreviewBody').innerHTML=parsed.map(r=>{
+    const isOk=r.matchedId&&!r.err,isChanged=isOk&&r.newStock!==r.oldStock;
+    let statusHtml,rowStyle='';
+    if(!r.matchedId){statusHtml=`<span class="match-skip">未找到商品</span>`;rowStyle='background:#fffbea';}
+    else if(r.err){statusHtml=`<span style="color:#d93025">${r.err}</span>`;rowStyle='background:#fff0f0';}
+    else if(isChanged){statusHtml=`<span class="match-ok">✓ 将更新</span>`;}
+    else{statusHtml=`<span style="color:#aaa">无变化</span>`;}
+    const specDisplay=r.spec||r.matchedSpec||'—';
+    const newCell=isChanged?`<span style="color:#aaa;text-decoration:line-through">${r.oldStock}</span> <span style="color:#1a5db5">→ <b>${r.newStock}</b></span>`:(r.newStock!==null?r.newStock:'—');
+    return `<tr style="${rowStyle}"><td>${r.name}</td><td style="color:#888;font-size:11px">${specDisplay}</td><td>${r.oldStock!==null?r.oldStock:'—'}</td><td>${newCell}</td><td>${statusHtml}</td></tr>`;
+  }).join('');
+  document.getElementById('stockPreviewNote').textContent=`来自：${filename} · 当前仓库：${WAREHOUSES[curWh]}`;
+  const cb=document.getElementById('stockConfirmBtn');cb.disabled=!changed.length;cb.style.opacity=changed.length?1:.5;
+  cb.textContent=changed.length?`✓ 确认更新 ${changed.length} 条库存`:'无可更新数据';
+  document.getElementById('stockEmptyHint').style.display='none';
+  document.getElementById('stockPreviewArea').style.display='block';
+}
+function confirmStockImport(){
+  const toUpdate=stockPendingRows.filter(r=>r.matchedId&&!r.err&&r.newStock!==r.oldStock);
+  if(!toUpdate.length){showToast('没有需要更新的数据');return;}
+  toUpdate.forEach(r=>{const item=items().find(i=>i.id===r.matchedId);if(item)item.stock=r.newStock;});
+  const info={time:new Date().toLocaleString('zh-CN'),count:toUpdate.length,wh:WAREHOUSES[curWh],details:toUpdate.map(r=>`${r.name}：${r.oldStock}→${r.newStock}`).join('；')};
+  lsSet(LS_LAST_UPD,info);renderLastUpdate();
+  saveData();render();cancelStockImport();
+  showToast(`✓ 已更新 ${toUpdate.length} 条 ${WAREHOUSES[curWh]} 库存`);
+}
+function cancelStockImport(){
+  stockPendingRows=[];document.getElementById('stockFileInput').value='';
+  document.getElementById('stockPreviewArea').style.display='none';
+  document.getElementById('stockEmptyHint').style.display='flex';
+}
+function renderLastUpdate(){
+  const info=lsGet(LS_LAST_UPD,null),el=document.getElementById('lastUpdateInfo');
+  if(!info){el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML=`🕐 上次库存更新：<b>${info.time}</b> · 仓库：<b>${info.wh||'—'}</b> · 更新 <b>${info.count}</b> 条 <span style="color:#aaa;font-size:11px;margin-left:6px" title="${info.details}">查看详情 ⓘ</span>`;
+}
+function downloadStockTemplate(){
+  const rows=[['商品名称','规格','当前库存数量']];
+  items().forEach(i=>rows.push([i.name,i.spec||'','']));
+  const ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=[{wch:20},{wch:16},{wch:14}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'库存更新');
+  XLSX.writeFile(wb,`库存更新模板_${WAREHOUSES[curWh]}.xlsx`);
+  showToast(`已导出${WAREHOUSES[curWh]}模板`);
+}
+
+// ──────────────────────────────────────────────────────────────
+// 数据同步：导出 / 导入 / 二维码
+// ──────────────────────────────────────────────────────────────
+function toggleSyncPanel(){
+  const p=document.getElementById('syncPanel');
+  const isHidden = p.style.display==='none';
+  p.style.display = isHidden ? 'block' : 'none';
+  document.getElementById('syncToggleBtn').style.background = isHidden ? '#e8f0fc' : '';
+  document.getElementById('syncToggleBtn').style.color = isHidden ? '#1a5db5' : '';
+}
+
+function buildBackupData(){
+  return {
+    version: 2,
+    exportTime: new Date().toISOString(),
+    exportDevice: navigator.userAgent.slice(0,60),
+    cats,
+    allItems,
+    planQty,
+    uid
+  };
+}
+
+function exportBackup(){
+  const data = buildBackupData();
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toLocaleDateString('zh-CN').replace(/\//g,'-');
+  a.href = url; a.download = `库存数据备份_${date}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  showToast('✓ 数据备份已导出，在另一台设备上导入此文件即可恢复');
+}
+
+function onSyncDragOver(e){ e.preventDefault(); document.getElementById('syncDrop').classList.add('drag'); }
+function onSyncDragLeave(){ document.getElementById('syncDrop').classList.remove('drag'); }
+function onSyncDrop(e){
+  e.preventDefault(); document.getElementById('syncDrop').classList.remove('drag');
+  const f=e.dataTransfer.files[0]; if(f) importBackup(f);
+}
+
+function importBackup(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      validateAndPreviewImport(data);
+    }catch(err){
+      showToast('文件解析失败，请确认是有效的备份文件');
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function validateAndPreviewImport(data){
+  if(!data.cats || !data.allItems || !Array.isArray(data.allItems)){
+    showToast('备份文件格式不正确');
+    return;
+  }
+  const total = (data.allItems||[]).reduce((s,a)=>s+(Array.isArray(a)?a.length:0),0);
+  const t = data.exportTime ? new Date(data.exportTime).toLocaleString('zh-CN') : '未知';
+  const preview = document.getElementById('syncImportPreview');
+  preview.style.display='block';
+  preview.innerHTML=`
+    <div style="margin-bottom:10px">
+      <div style="font-weight:600;color:#1a1a1a;margin-bottom:4px">📋 备份文件信息</div>
+      <div style="color:#555">导出时间：${t}</div>
+      <div style="color:#555">商品总数：<b>${total}</b> 条 · 类别：<b>${(data.cats||[]).length}</b> 个</div>
+      <div style="color:#555">工程库：${(data.allItems[0]||[]).length} 条 · 日常库：${(data.allItems[1]||[]).length} 条</div>
+    </div>
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px;font-size:11px;color:#7a5500;margin-bottom:10px">
+      ⚠ 导入后将<b>覆盖</b>本设备的所有库存数据，此操作不可撤销
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn success" onclick="confirmImportBackup(${encodeDataForAttr(JSON.stringify(data))})" style="flex:1;justify-content:center">✓ 确认导入覆盖</button>
+      <button class="btn" onclick="cancelImportBackup()" style="justify-content:center">✕ 取消</button>
+    </div>`;
+  // store pending data globally
+  window._pendingImportData = data;
+  // fix the button to use global
+  preview.querySelector('button.success').onclick = ()=>confirmImportBackup(window._pendingImportData);
+}
+
+function encodeDataForAttr(){ return ''; } // placeholder, not used
+
+function confirmImportBackup(data){
+  if(!data){ data = window._pendingImportData; }
+  if(!data){ showToast('导入数据丢失，请重新选择文件'); return; }
+  try{
+    cats     = data.cats     || DEFAULT_CATS;
+    allItems = data.allItems || [[], []];
+    planQty  = data.planQty  || {};
+    uid      = data.uid      || (allItems.reduce((mx,a)=>Math.max(mx,...a.map(i=>i.id||0)),0)+1);
+    // 确保两个仓库数组都存在
+    if(!Array.isArray(allItems[0])) allItems[0]=[];
+    if(!Array.isArray(allItems[1])) allItems[1]=[];
+    saveData();
+    renderCatMgr();
+    render();
+    cancelImportBackup();
+    showToast('✓ 数据导入成功！所有库存数据已恢复');
+  }catch(e){
+    showToast('导入出错：' + e.message);
+  }
+}
+
+function cancelImportBackup(){
+  window._pendingImportData = null;
+  document.getElementById('syncImportPreview').style.display='none';
+  document.getElementById('syncFileInput').value='';
+}
+
+// ──────────────────────────────────────────────────────────────
+// 初始化
+// ──────────────────────────────────────────────────────────────
+renderCatMgr(); render(); renderLastUpdate();
+</script>
+</body>
+</html>
